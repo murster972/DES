@@ -38,7 +38,7 @@ class DES:
             #lt, rt = rt, lt
             p = self.permutations("final", rt + lt)
             ct_blocks.append(p)
-
+        return base64.b64encode(bytes("".join(ct_blocks), "utf-8"))
 
     def decrypt(self):
         pass
@@ -119,4 +119,5 @@ if __name__ == '__main__':
     key = "0011000011100000100110001001000111000100100010000100110000111010"
     pt = "Hello World!"
     d = DES(pt=pt, key=key)
-    d.encrypt()
+    ct = d.encrypt()
+    print(ct)
