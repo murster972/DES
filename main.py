@@ -7,6 +7,7 @@ import random
 class DES:
     def __init__(self, pt="", ct="", key=""):
         self.pt = pt
+        self.ct = ct
         self.key = key
 
         self.key_err = "Key must be 64-bits longs and represented as bin str i.e '1010110...'."
@@ -15,36 +16,42 @@ class DES:
         if len(self.key) != 64 or not isinstance(self.key, str): raise KeyErrorException(self.key_err)
         if not isinstance(self.pt, str): raise PlaintextTypeException("Plaintext must be a string.")
 
-        #puts text into 64-bit blocks
         blocks = self.get_blocks(self.pt)
-        ct_blocks = []
-
         round_keys = self.key_schedule()
+        ct = self.feistel_network(blocks, round_keys)
+        return str(base64.b64encode(bytes("".join(ct), "utf-8")))[2:-1]
 
+    def decrypt(self):
+        if len(self.key) != 64 or not isinstance(self.key, str): raise KeyErrorException(self.key_err)
+
+        decode = str(base64.b64decode(self.ct))[2:-1]
+        decode = ("0" * (len(decode) % 64)) + decode
+        blocks = [decode[x:x + 64] for x in range(0, len(decode), 64)]
+
+        #NOTE: not how round-keys are derieved for decryption in DES, but works in python
+        round_keys = self.key_schedule()[::-1]
+
+        pt_blocks = "".join(self.feistel_network(blocks, round_keys))
+        pt = ""
+        for i in range(0, len(pt_blocks), 8):
+            pt += chr(int(pt_blocks[i:i + 8], 2))
+        return pt
+
+    def feistel_network(self, blocks, round_keys):
         #goes through each block performing initial permuation, 16 rounds of fiestel_network, and
         #then final permutation
-        for i in blocks:
-            #intial permutation
-            perm = self.permutations("initial", i)
-            #split into left and right halfs
+        ct_pt_blocks = []
+        for b in blocks:
+            perm = self.permutations("initial", b)
             lt, rt = perm[:32], perm[32:]
 
-            #16 rounds
             for r in range(16):
                 f = self.f_function(rt, round_keys[r])
                 lt = bin(int(lt, 2) ^ int(f, 2))[2:]
                 lt = ("0" * (32 - len(lt))) + lt
                 lt, rt = rt, lt
-            #lt, rt = rt, lt
-            p = self.permutations("final", rt + lt)
-            ct_blocks.append(p)
-        return base64.b64encode(bytes("".join(ct_blocks), "utf-8"))
-
-    def decrypt(self):
-        pass
-
-    def fiestel_network(self):
-        pass
+            ct_pt_blocks.append(self.permutations("final", rt + lt))
+        return ct_pt_blocks
 
     '''f-function - performs expansion, XOR with round-key and sboxes'''
     def f_function(self, r, k):
@@ -101,7 +108,6 @@ class DES:
         #removes every parity - 8th - bit, and performs pc-1(permutated choice 1)
         k = self.permutations("PC-1", self.key)
         CD = k
-
         round_keys = []
         #NOTE: Unsure if the rotation occurs in both C and D, or if together in CD
         for i in range(16):
@@ -118,6 +124,7 @@ if __name__ == '__main__':
     #TODO: have DES generate key for encryption
     key = "0011000011100000100110001001000111000100100010000100110000111010"
     pt = "Hello World!"
-    d = DES(pt=pt, key=key)
-    ct = d.encrypt()
-    print(ct)
+    ct = "MDAxMTAxMDEwMTEwMDExMTEwMTAxMTExMTAxMDAxMDExMTAwMTAxMDExMDAxMTAxMTEwMTAwMDAwMTExMTExMTExMDEwMDExMTExMDAxMDAwMTAwMDAwMDAxMDEwMTExMTAxMDEwMTExMTAwMTAwMTEwMTAxMDExMTEwMDExMTE="
+    d = DES(ct=ct, key=key)
+    pt = d.decrypt()
+    print(pt)
