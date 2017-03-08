@@ -18,14 +18,16 @@ class DES:
 
         blocks = self.get_blocks(self.pt)
         round_keys = self.key_schedule()
-        ct = self.feistel_network(blocks, round_keys)
-        return str(base64.b64encode(bytes("".join(ct), "utf-8")))[2:-1]
+        ct = "".join(self.feistel_network(blocks, round_keys))
+
+        ct = str(int(ct, 2))
+        return str(base64.b64encode(bytes(ct, "utf-8")))[2:-1]
 
     def decrypt(self):
         if len(self.key) != 64 or not isinstance(self.key, str): raise KeyErrorException(self.key_err)
 
-        decode = str(base64.b64decode(self.ct))[2:-1]
-        decode = ("0" * (len(decode) % 64)) + decode
+        decode = bin(int(str(base64.b64decode(self.ct))[2:-1]))[2:]
+        decode = ("0" * (64 - (len(decode) % 64))) + decode
         blocks = [decode[x:x + 64] for x in range(0, len(decode), 64)]
 
         #NOTE: not how round-keys are derieved for decryption in DES, but works in python
@@ -89,7 +91,7 @@ class DES:
             b = bin(ord(i))[2:]
             bin_t += ("0" * (8 - len(b))) + b
 
-        bin_t = ("0" * (len(bin_t) % 64)) + bin_t
+        bin_t = ("0" * (64 - (len(bin_t) % 64))) + bin_t
         blocks = [bin_t[x:x + 64] for x in range(0, len(bin_t), 64)]
         return blocks
 
@@ -109,7 +111,7 @@ class DES:
         k = self.permutations("PC-1", self.key)
         CD = k
         round_keys = []
-        #NOTE: Unsure if the rotation occurs in both C and D, or if together in CD
+        ##NOTE: Unsure if the rotation occurs in both C and D, or if together in CD
         for i in range(16):
             if i + 1 in [1, 2, 9, 16]: CD = CD[1:] + CD[0]
             else: CD = CD[2:] + CD[:2]
@@ -124,7 +126,7 @@ if __name__ == '__main__':
     #TODO: have DES generate key for encryption
     key = "0011000011100000100110001001000111000100100010000100110000111010"
     pt = "Hello World!"
-    ct = "MDAxMTAxMDEwMTEwMDExMTEwMTAxMTExMTAxMDAxMDExMTAwMTAxMDExMDAxMTAxMTEwMTAwMDAwMTExMTExMTExMDEwMDExMTExMDAxMDAwMTAwMDAwMDAxMDEwMTExMTAxMDEwMTExMTAwMTAwMTEwMTAxMDExMTEwMDExMTE="
+    ct = "NzA5ODc0NTI5MTAxMjE4Njg3OTI3NDYzNDU1MTMwMTQxMTExODM="
     d = DES(ct=ct, key=key)
     pt = d.decrypt()
     print(pt)
