@@ -10,34 +10,46 @@ class DES:
         self.ct = ct
         self.key = key
 
-        self.key_err = "Key must be 64-bits longs and represented as bin str i.e '1010110...'."
+        #NOTE: works woth 56-bit key as first permuation in key-schedule
+        #      removes every 8th bit, so even if 64 provided only 56-bits
+        #      are used.
+        self.key_err = "Key must be 56-bits long and represented as ascii, i.e 8 ascii chars"
 
     def encrypt(self):
-        if len(self.key) != 64 or not isinstance(self.key, str): raise KeyErrorException(self.key_err)
-        if not isinstance(self.pt, str): raise PlaintextTypeException("Plaintext must be a string.")
-
+        k = self.get_key()
         blocks = self.get_blocks(self.pt)
-        round_keys = self.key_schedule()
+        round_keys = self.key_schedule(k)
         ct = "".join(self.feistel_network(blocks, round_keys))
 
         ct = str(int(ct, 2))
         return str(base64.b64encode(bytes(ct, "utf-8")))[2:-1]
 
     def decrypt(self):
-        if len(self.key) != 64 or not isinstance(self.key, str): raise KeyErrorException(self.key_err)
-
+        #if len(self.key) != 64 or not isinstance(self.key, str): raise KeyErrorException(self.key_err)
+        k = self.get_key()
         decode = bin(int(str(base64.b64decode(self.ct))[2:-1]))[2:]
-        decode = ("0" * (64 - (len(decode) % 64))) + decode
+        padd = 64 - (len(decode) % 64) if (len(decode) % 64) != 0 else 0
+        decode = ("0" * padd) + decode
         blocks = [decode[x:x + 64] for x in range(0, len(decode), 64)]
 
         #NOTE: not how round-keys are derieved for decryption in DES, but works in python
-        round_keys = self.key_schedule()[::-1]
+        round_keys = self.key_schedule(k)[::-1]
 
         pt_blocks = "".join(self.feistel_network(blocks, round_keys))
         pt = ""
         for i in range(0, len(pt_blocks), 8):
             pt += chr(int(pt_blocks[i:i + 8], 2))
         return pt
+
+    '''converts key from ascii to binary'''
+    def get_key(self):
+        if len(self.key) != 8: raise KeyErrorException(self.key_err)
+        k = ""
+        for x in self.key:
+            b = bin(ord(x))[2:]
+            k += ("0" * (7 - len(b))) + b
+        #adds padding to allow for first permutation in key-schedule
+        return "".join([k[x:x + 7] + "0" for x in range(0, 56, 7)])
 
     def feistel_network(self, blocks, round_keys):
         #goes through each block performing initial permuation, 16 rounds of fiestel_network, and
@@ -106,12 +118,12 @@ class DES:
         return "".join([t[x - 1] for x in perms[p]])
 
     ''' returns 16 round keys generated from the main key '''
-    def key_schedule(self):
+    def key_schedule(self, key):
         #removes every parity - 8th - bit, and performs pc-1(permutated choice 1)
-        k = self.permutations("PC-1", self.key)
+        k = self.permutations("PC-1", key)
         CD = k
         round_keys = []
-        ##NOTE: Unsure if the rotation occurs in both C and D, or if together in CD
+        #NOTE: Unsure if the rotation occurs in both C and D, or if together in CD
         for i in range(16):
             if i + 1 in [1, 2, 9, 16]: CD = CD[1:] + CD[0]
             else: CD = CD[2:] + CD[:2]
@@ -124,9 +136,9 @@ class KeyErrorException(Exception):
 if __name__ == '__main__':
     #not secure, user should not be allowed to pass key for encryption, for demo purposes only
     #TODO: have DES generate key for encryption
-    key = "0011000011100000100110001001000111000100100010000100110000111010"
-    pt = "Hello World!"
-    ct = "NzA5ODc0NTI5MTAxMjE4Njg3OTI3NDYzNDU1MTMwMTQxMTExODM="
+    key = "12345678"
+    pt = "Hello!"
+    ct = "MTczMDM4MTk1OTkxNzI4MTk3NjI="
     d = DES(ct=ct, key=key)
     pt = d.decrypt()
     print(pt)
